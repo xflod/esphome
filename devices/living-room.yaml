@@ -1,22 +1,26 @@
 esphome:
-  name: living-room-light
-  platform: ESP32
-  board: nodemcu-32s
+  name: "bedroom-light"
+  platform: ESP8266
+  board: nodemcuv2
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  ssid: "xod"                    # Langsung ditulis
+  password: "05081992"             # Langsung ditulis
+  
+  ap:
+    ssid: "BedHotspot"
+    password: "fallback123"
 
 api:
   encryption:
-    key: !secret api_key
+    key: "abc123def456ghi789jkl012mno345pqr678stu901"
 
 ota:
-  password: !secret ota_password
+  password: "ota_update_secure"
 
 logger:
 
 light:
   - platform: gpio
-    pin: GPIO2
-    name: "Living Room Light"
+    pin: GPIO4
+    name: "Bedroom Light"
