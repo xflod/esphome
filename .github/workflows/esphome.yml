@@ -1,63 +1,98 @@
-name: ESPHome Minimal Test
+name: ESPHome Full Debug Build
 
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
       
-    - name: Setup Python and ESPHome
-      run: |
-        sudo apt-get update
-        apt-get install -y python3-pip
-        pip3 install esphome
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
         
-    - name: Create minimal config
+    - name: Install ESPHome
       run: |
-        cat > minimal.yaml << 'EOF'
+        pip install esphome
+        
+    - name: Create a simple test device config
+      run: |
+        mkdir -p devices
+        cat > devices/debug-device.yaml << 'EOF'
         esphome:
-          name: test
-          platform: ESP8266  
+          name: "debug-device-01"
+          platform: ESP8266
           board: nodemcuv2
-        
+
         wifi:
-          ssid: "x"
-          password: "x"
-        
+          ssid: "TestWiFi"
+          password: "test123456"
+
         logger:
+
         api:
           encryption:
-            key: "0000000000000000000000000000000000000000000000000000000000000000"
+            key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
         ota:
-          password: "x"
+          password: "ota123456"
         EOF
         
-    - name: Build and show output structure
+        echo "📄 Config file created:"
+        cat devices/debug-device.yaml
+        
+    - name: Build with detailed output
       run: |
-        echo "=== Building firmware ==="
-        esphome compile minimal.yaml
+        echo "🔨 Building debug-device.yaml..."
+        esphome compile --verbose devices/debug-device.yaml
+        
+    - name: Find all generated files
+      run: |
+        echo "🔍 Searching for ALL files in the repository..."
+        find . -type f | grep -v ".git" | sort | head -50
         
         echo ""
-        echo "=== Listing ALL files ==="
-        find . -type f | grep -v ".git" | sort
+        echo "🔍 Specifically looking for build files..."
+        find . -name "*.bin" -type f 2>/dev/null | head -20 || echo "No .bin files found"
         
         echo ""
-        echo "=== .esphome directory ==="
-        ls -la .esphome/
-        find .esphome -name "*.bin" -type f 2>/dev/null || echo "No bin in .esphome"
+        echo "🔍 ESPHome build directory structure..."
+        find .esphome -type f 2>/dev/null | head -30 || echo "No .esphome directory"
         
-    - name: Force create output
+        echo ""
+        echo "🔍 Current directory contents..."
+        ls -la
+        echo ""
+        ls -la .esphome/ 2>/dev/null || echo "No .esphome directory"
+        
+    - name: Copy any found firmware files
       run: |
-        mkdir -p artifacts
-        # Create a dummy file if no firmware found
-        echo "No firmware files were generated" > artifacts/README.txt
-        ls -la artifacts/
+        mkdir -p firmware-collection
         
-    - uses: actions/upload-artifact@v4
+        # Copy any .bin files found
+        if find . -name "*.bin" -type f | head -1; then
+          echo "🎯 Found .bin files, copying..."
+          find . -name "*.bin" -type f -exec cp {} firmware-collection/ \;
+          echo "📦 Files copied to firmware-collection:"
+          ls -la firmware-collection/
+        else
+          echo "❌ No .bin files found anywhere!"
+          
+          # Check what's actually in .esphome
+          echo "📁 Checking .esphome content..."
+          find .esphome -type f 2>/dev/null | head -20 || echo "No .esphome files"
+        fi
+        
+    - name: Upload whatever we found
+      uses: actions/upload-artifact@v4
       with:
-        name: build-artifacts
-        path: artifacts/
-        if-no-files-found: error
+        name: debug-output
+        path: |
+          firmware-collection/
+          devices/debug-device.yaml
+        if-no-files-found: warn
