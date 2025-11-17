@@ -1,65 +1,63 @@
-name: Build ESPHome Firmware
+name: ESPHome Minimal Test
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+on: [workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install ESPHome
+    - name: Setup Python and ESPHome
       run: |
-        pip install esphome
+        sudo apt-get update
+        apt-get install -y python3-pip
+        pip3 install esphome
         
-    - name: Build and collect firmware files
+    - name: Create minimal config
       run: |
-        # Create output directory
-        mkdir -p firmware-output
+        cat > minimal.yaml << 'EOF'
+        esphome:
+          name: test
+          platform: ESP8266  
+          board: nodemcuv2
         
-        # Build each device and copy firmware
-        for config_file in devices/*.yaml; do
-          if [[ -f "$config_file" ]]; then
-            device_name=$(basename "$config_file" .yaml)
-            echo "🔨 Building: $device_name"
-            
-            # Build the firmware
-            if esphome compile "$config_file"; then
-              echo "✅ Build successful: $device_name"
-              
-              # Find the generated firmware file
-              if compgen -G ".esphome/build/*/.pioenvs/*/firmware.bin" > /dev/null; then
-                firmware_path=$(find .esphome/build -name "firmware.bin" | head -1)
-                cp "$firmware_path" "firmware-output/${device_name}.bin"
-                echo "📦 Firmware copied: firmware-output/${device_name}.bin"
-              else
-                echo "❌ Firmware file not found for $device_name"
-              fi
-            else
-              echo "❌ Build failed: $device_name"
-            fi
-            echo "---"
-          fi
-        done
+        wifi:
+          ssid: "x"
+          password: "x"
         
-        # List all generated files for debugging
-        echo "📁 Contents of firmware-output:"
-        ls -la firmware-output/ || echo "No files in firmware-output"
+        logger:
+        api:
+          encryption:
+            key: "0000000000000000000000000000000000000000000000000000000000000000"
+        ota:
+          password: "x"
+        EOF
         
-    - name: Upload firmware artifacts
-      uses: actions/upload-artifact@v4
+    - name: Build and show output structure
+      run: |
+        echo "=== Building firmware ==="
+        esphome compile minimal.yaml
+        
+        echo ""
+        echo "=== Listing ALL files ==="
+        find . -type f | grep -v ".git" | sort
+        
+        echo ""
+        echo "=== .esphome directory ==="
+        ls -la .esphome/
+        find .esphome -name "*.bin" -type f 2>/dev/null || echo "No bin in .esphome"
+        
+    - name: Force create output
+      run: |
+        mkdir -p artifacts
+        # Create a dummy file if no firmware found
+        echo "No firmware files were generated" > artifacts/README.txt
+        ls -la artifacts/
+        
+    - uses: actions/upload-artifact@v4
       with:
-        name: esphome-firmwares
-        path: firmware-output/
-        if-no-files-found: warn
-        retention-days: 30
+        name: build-artifacts
+        path: artifacts/
+        if-no-files-found: error
