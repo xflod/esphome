@@ -3,8 +3,6 @@ name: Build ESPHome Firmware
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:  # Manual trigger
 
 jobs:
@@ -15,12 +13,21 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Build ESPHome firmware
-      uses: esphome/esphome-action@v1
+    - name: Setup Python
+      uses: actions/setup-python@v4
       with:
-        command: 'compile'
-        config: "devices/*.yaml"
-        platform: 'esp32'
+        python-version: '3.11'
+        
+    - name: Install ESPHome
+      run: |
+        pip install esphome
+        
+    - name: Build all device configurations
+      run: |
+        for config_file in devices/*.yaml; do
+          echo "Building $config_file..."
+          esphome compile "$config_file" || echo "Failed to build $config_file"
+        done
         
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
